@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from scripts.osm_retrieval import retrieve_osm_data
 from scripts.gridkit_retrieval import retrieve_and_prepare_gridkit
+from scripts.powerplants_retrieval import retrieve_and_prepare_powerplants
 
 def configure_logging():
     """Configure logging for the application."""
@@ -25,18 +26,22 @@ def main():
     # Environment-driven toggles
     RUN_OSM = os.getenv("RUN_OSM", "1") == "1"
     RUN_GRIDKIT = os.getenv("RUN_GRIDKIT", "1") == "1"
+    RUN_POWERPLANTS = os.getenv("RUN_POWERPLANTS", "1") == "1"
 
     logging.info(f"""
         RUN_OSM: {RUN_OSM},
-        RUN_GRIDKIT: {RUN_GRIDKIT}
+        RUN_GRIDKIT: {RUN_GRIDKIT},
+        RUN_POWERPLANTS: {RUN_POWERPLANTS}
     """)
 
     # Ensure output directories exist
     osm_output_dir = Path("output/osm")
-    osm_output_dir.mkdir(parents=True, exist_ok=True)
-
     gridkit_output_dir = Path("output/gridkit")
+    powerplants_output_dir = Path("output/powerplants")
+
+    osm_output_dir.mkdir(parents=True, exist_ok=True)
     gridkit_output_dir.mkdir(parents=True, exist_ok=True)
+    powerplants_output_dir.mkdir(parents=True, exist_ok=True)
 
     # --- OpenStreetMap Geospatial Data Retrieval ---
     if RUN_OSM:
@@ -53,6 +58,14 @@ def main():
             logging.info("GridKit data retrieved successfully.")
         except Exception as e:
             logging.error(f"GridKit retrieval failed: {e}")
+
+    # --- EU Power Plants & Ownership Retrieval (Global Power Plant Database) ---
+    if RUN_POWERPLANTS:
+        try:
+            retrieve_and_prepare_powerplants(output_dir=powerplants_output_dir)
+            logging.info("Power plants data retrieved successfully.")
+        except Exception as e:
+            logging.error(f"Power plants retrieval failed: {e}")
 
     logging.info("=== Geospatial Data Retrieval Completed ===")
 
