@@ -1,25 +1,45 @@
 # Geospatial-Retrieval
 
-A Docker Compose–based pipeline designed to **retrieve, process, and store detailed geospatial infrastructure data** from OpenStreetMap (OSM), specifically focused on energy-related facilities and infrastructures across EU countries. This repository is ideal for creating comprehensive spatial datasets to support multimodal AI applications and geospatial analytics in the energy domain.
+A Docker Compose–based pipeline designed to **retrieve, process, and store detailed geospatial and relational infrastructure data** including OpenStreetMap (OSM), GridKit, Global Power Plant Database, ENTSO-E TSO network, and CORDIS EU Projects. This repository is ideal for creating comprehensive spatial and relational datasets to support multimodal AI applications, geospatial analytics, and knowledge graph construction in the energy domain.
 
 ## 🚀 Features
 
-- **OpenStreetMap Geospatial Data Retrieval**:
-  - Locations and attributes of power generation facilities (e.g., power plants, wind turbines, solar farms).
-  - High-voltage transmission infrastructure, including substations and power lines.
-  - EV charging stations and other energy-related points of interest.
+### 🌍 **Geospatial Infrastructure Data**
 
-- **Structured GeoJSON Output**:
-  - Spatial data saved as standardized GeoJSON files.
-  - Automatically generated detailed JSON metadata for each dataset, including source, retrieval timestamps, feature counts, and licensing information.
+- **OpenStreetMap (OSM)**:
+  - Power plants, wind turbines, solar farms
+  - Substations, transmission lines
+  - EV charging stations
 
-- **Flexible Configuration**:
-  - Toggle data retrieval through environment flags (`RUN_OSM`).
-  - Easily extend or modify queries for specific infrastructure categories directly in the retrieval scripts.
+- **GridKit European Transmission Grid**:
+  - High-voltage grid nodes (substations) and links (transmission lines)
 
-- **Robust Logging**:
-  - Comprehensive logs saved in `logs/geospatial_retrieval.log`.
-  - Real-time feedback on data retrieval progress, successes, and failures.
+- **Global Power Plant Database**:
+  - Detailed EU power plants data including ownership, capacity, and fuel types
+
+### 🔗 **Relational Network Data**
+
+- **ENTSO-E TSO Network**:
+  - European Transmission System Operators (TSOs) and their interconnections
+
+- **CORDIS EU Projects Database**:
+  - Collaborative network of EU-funded energy research projects and organizations
+
+### 📐 **Structured Outputs**
+
+- **GeoJSON** for geospatial data
+- **CSV** optimized for Neo4j import
+- **JSON metadata** detailing sources, timestamps, and licensing
+
+### 🛠️ **Flexible Configuration**
+
+- Enable or disable datasets via environment flags (`RUN_OSM`, `RUN_GRIDKIT`, `RUN_POWERPLANTS`, `RUN_TSO_NETWORK`, `RUN_CORDIS`)
+
+### 📑 **Robust Logging**
+
+- Logs stored in `logs/geospatial_retrieval.log`
+
+---
 
 ## 🗂 Repository Structure
 
@@ -34,13 +54,33 @@ geospatial_retrieval
 │   └── geospatial_retrieval.log
 ├── main.py
 ├── output
-│   └── osm
-│       ├── germany_power_plants.geojson
-│       ├── germany_power_plants_metadata.json
-│       └── ...
+│   ├── osm
+│   │   ├── germany_power_plants.geojson
+│   │   ├── germany_power_plants_metadata.json
+│   │   └── ...
+│   ├── gridkit
+│   │   ├── nodes.csv
+│   │   ├── relationships.csv
+│   │   └── metadata.json
+│   ├── powerplants
+│   │   ├── eu_powerplants.csv
+│   │   └── metadata.json
+│   ├── tso_network
+│   │   ├── tso_nodes.csv
+│   │   ├── tso_relationships.csv
+│   │   └── metadata.json
+│   └── cordis
+│       ├── projects_nodes.csv
+│       ├── organizations_nodes.csv
+│       ├── participated_in_relationships.csv
+│       └── metadata.json
 ├── requirements.txt
 └── scripts
-    └── osm_retrieval.py
+    ├── osm_retrieval.py
+    ├── gridkit_retrieval.py
+    ├── powerplants_retrieval.py
+    ├── tso_network_retrieval.py
+    └── cordis_retrieval.py
 ```
 
 - `main.py`: Coordinates geospatial data retrieval based on environment configurations.
@@ -61,6 +101,10 @@ Configure the image retrieval pipeline by creating and editing a `.env` file at 
 
 ```bash
 RUN_OSM=1
+RUN_GRIDKIT=1
+RUN_POWERPLANTS=1
+RUN_TSO_NETWORK=1
+RUN_CORDIS=1
 ```
 
 Create your `.env` file in the repository root with:
@@ -95,52 +139,27 @@ You can adjust or extend these queries directly within the script as needed.
 Datasets and metadata structured as follows:
 
 ```text
-output/osm/
-├── germany_power_plants.geojson
-├── germany_power_plants_metadata.json
-├── germany_wind_turbines.geojson
-├── germany_wind_turbines_metadata.json
-└── ...
-```
-
-Each GeoJSON file follows this standard structure:
-
-```json
-{
-  "type": "FeatureCollection",
-  "features": [
-    {
-      "type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [longitude, latitude]
-      },
-      "properties": {
-        "osm_id": "123456789",
-        "name": "Facility Name",
-        "source": "wind",
-        "capacity": "5000 kW",
-        "...": "..."
-      }
-    },
-    "..."
-  ]
-}
-```
-
-Metadata files provide additional context for each dataset:
-
-```json
-{
-  "country": "Germany",
-  "dataset": "wind_turbines",
-  "number_of_features": 1234,
-  "retrieval_timestamp": "2024-06-22T00:00:00Z",
-  "source": "OpenStreetMap via Overpass API",
-  "license": "ODbL (Open Database License)",
-  "osm_query": "node[\"power\"=\"generator\"][\"generator:source\"=\"wind\"];",
-  "geojson_file": "output/osm/germany_wind_turbines.geojson"
-}
+├── output/osm/
+│   ├── germany_power_plants.geojson
+│   ├── germany_power_plants_metadata.json
+│   └── ...
+├── gridkit/
+│   ├── nodes.csv
+│   ├── relationships.csv
+│   └── metadata.json
+├── powerplants/
+│   ├── powerplants_nodes.csv
+│   ├── relationships.csv
+│   └── metadata.json
+├── tso_network/
+│   ├── tso_nodes.csv
+│   ├── connections_relationships.csv
+│   └── metadata.json
+└── cordis/
+    ├── projects_nodes.csv
+    ├── organizations_nodes.csv
+    ├── participated_in_relationships.csv
+    └── metadata.json
 ```
 
 ## 🐳 Build & Run

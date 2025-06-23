@@ -5,6 +5,7 @@ from scripts.osm_retrieval import retrieve_osm_data
 from scripts.gridkit_retrieval import retrieve_and_prepare_gridkit
 from scripts.powerplants_retrieval import retrieve_and_prepare_powerplants
 from scripts.tso_network_retrieval import retrieve_and_prepare_tso_network
+from scripts.cordis_retrieval import retrieve_and_prepare_cordis
 
 def configure_logging():
     """Configure logging for the application."""
@@ -29,12 +30,14 @@ def main():
     RUN_GRIDKIT = os.getenv("RUN_GRIDKIT", "1") == "1"
     RUN_POWERPLANTS = os.getenv("RUN_POWERPLANTS", "1") == "1"
     RUN_TSO_NETWORK = os.getenv("RUN_TSO_NETWORK", "1") == "1"
+    RUN_CORDIS = os.getenv("RUN_CORDIS", "1") == "1"
 
     logging.info(f"""
         RUN_OSM: {RUN_OSM},
         RUN_GRIDKIT: {RUN_GRIDKIT},
         RUN_POWERPLANTS: {RUN_POWERPLANTS},
-        RUN_TSO_NETWORK: {RUN_TSO_NETWORK}
+        RUN_TSO_NETWORK: {RUN_TSO_NETWORK},
+        RUN_CORDIS: {RUN_CORDIS}
     """)
 
     # Ensure output directories exist
@@ -42,11 +45,13 @@ def main():
     gridkit_output_dir = Path("output/gridkit")
     powerplants_output_dir = Path("output/powerplants")
     tso_output_dir = Path("output/tso_network")
+    cordis_output_dir = Path("output/cordis")
 
     osm_output_dir.mkdir(parents=True, exist_ok=True)
     gridkit_output_dir.mkdir(parents=True, exist_ok=True)
     powerplants_output_dir.mkdir(parents=True, exist_ok=True)
     tso_output_dir.mkdir(parents=True, exist_ok=True)
+    cordis_output_dir.mkdir(parents=True, exist_ok=True)
 
     # --- OpenStreetMap Geospatial Data Retrieval ---
     if RUN_OSM:
@@ -79,6 +84,14 @@ def main():
             logging.info("ENTSO-E TSO network data retrieved successfully.")
         except Exception as e:
             logging.error(f"ENTSO-E TSO network retrieval failed: {e}")
+    
+    # --- CORDIS Projects Data Retrieval ---
+    if RUN_CORDIS:
+        try:
+            retrieve_and_prepare_cordis(output_dir=cordis_output_dir)
+            logging.info("CORDIS data retrieved successfully.")
+        except Exception as e:
+            logging.error(f"CORDIS retrieval failed: {e}")
 
     logging.info("=== Geospatial Data Retrieval Completed ===")
 
