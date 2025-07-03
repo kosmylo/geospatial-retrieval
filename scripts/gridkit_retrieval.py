@@ -5,10 +5,44 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+import reverse_geocoder as rg
 
 DATA_URL = "https://zenodo.org/records/47317/files/gridkit_euorpe.zip?download=1"
 ZIP_FILENAME = "gridkit_data.zip"
 EXTRACT_DIR = "gridkit_extracted"
+
+def assign_label(typ):
+    typ_lower = str(typ).strip().lower()
+    if typ_lower in ['substation', 'sub_station', 'station']:
+        return 'Substation'
+    elif typ_lower == 'plant':
+        return 'Plant'
+    elif typ_lower == 'joint':
+        return 'Joint'
+    elif typ_lower == 'merge':
+        return 'Merge'
+    else:
+        return 'Unknown'
+    
+def clean_name(name):
+    if pd.isnull(name) or not isinstance(name, str):
+        return 'Unknown'
+    try:
+        return name.encode('utf-8').decode('utf-8')
+    except UnicodeDecodeError:
+        return name.encode('utf-8', errors='replace').decode('utf-8')
+    
+def get_country(lat, lon):
+    coordinates = (lat, lon)
+    result = rg.search(coordinates, mode=1)  # Fast single query mode
+    return result[0]['cc']  # ISO 2-letter country code
+
+def assign_country(row):
+    try:
+        return get_country(float(row['latitude']), float(row['longitude']))
+    except Exception as e:
+        logging.warning(f"Could not get country for ID {row['id']}: {e}")
+        return 'Unknown'
 
 def download_gridkit_data(zip_path: Path):
     logging.info("Downloading GridKit dataset...")
@@ -31,19 +65,23 @@ def process_gridkit_data(extract_dir: Path, output_dir: Path):
     vertices_path = extract_dir / "gridkit_europe-highvoltage-vertices.csv"
     edges_path = extract_dir / "gridkit_europe-highvoltage-links.csv"
 
-    # Load CSVs
-    nodes_df = pd.read_csv(vertices_path)
-    links_df = pd.read_csv(edges_path)
+    # Load CSVs explicitly with UTF-8 encoding
+    nodes_df = pd.read_csv(vertices_path, encoding='utf-8', dtype=str)
+    links_df = pd.read_csv(edges_path, encoding='utf-8', dtype=str)
 
-    # Check the available columns for nodes_df
-    logging.info(f"Nodes columns: {nodes_df.columns.tolist()}")
+    # Rename and select columns explicitly
+    nodes_df.rename(columns={
+        'v_id': 'id', 'lon': 'longitude', 'lat': 'latitude',
+        'typ': 'type', 'frequency': 'frequency', 'voltage': 'voltage',
+        'operator': 'operator', 'name': 'name'
+    }, inplace=True)
 
-    # Cleaning nodes (removed 'country' column)
-    nodes_df.rename(columns={'v_id': 'id', 'lon': 'longitude', 'lat': 'latitude'}, inplace=True)
-    nodes_df = nodes_df[['id', 'longitude', 'latitude', 'typ', 'frequency', 'voltage', 'operator', 'name']]
-    nodes_df['label'] = 'Substation'
+    nodes_df = nodes_df[['id', 'longitude', 'latitude', 'type', 'frequency', 'voltage', 'operator', 'name']]
+    nodes_df['label'] = nodes_df['type'].apply(assign_label)
+    nodes_df['name'] = nodes_df['name'].apply(clean_name)
+    nodes_df['country'] = nodes_df.apply(assign_country, axis=1)
 
-    # Prepare relationships
+    # Relationships explicitly
     relationships_df = links_df.rename(columns={
         'v_id_1': 'source', 
         'v_id_2': 'target', 
@@ -54,12 +92,14 @@ def process_gridkit_data(extract_dir: Path, output_dir: Path):
     relationships_df = relationships_df[['source', 'target', 'cables', 'voltage', 'wires']]
     relationships_df['type'] = 'CONNECTED_TO'
 
-    # Save nodes and relationships
-    nodes_csv = output_dir / "nodes.csv"
-    relationships_csv = output_dir / "relationships.csv"
+    # Save explicitly for Neo4j
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    nodes_df.to_csv(nodes_csv, index=False)
-    relationships_df.to_csv(relationships_csv, index=False)
+    nodes_csv = output_dir / "grid_nodes.csv"
+    relationships_csv = output_dir / "connected_to_relationships.csv"
+
+    nodes_df.to_csv(nodes_csv, index=False, encoding='utf-8')
+    relationships_df.to_csv(relationships_csv, index=False, encoding='utf-8')
 
     logging.info(f"Nodes data saved to {nodes_csv}")
     logging.info(f"Relationships data saved to {relationships_csv}")
@@ -71,15 +111,15 @@ def generate_metadata(output_dir: Path):
         "retrieval_date": datetime.utcnow().isoformat() + "Z",
         "source": DATA_URL,
         "license": "ODbL",
-        "description": "European high-voltage electricity transmission grid data including substations (nodes) and transmission lines (edges).",
+        "description": "European high-voltage electricity transmission grid data including buses (nodes) and transmission lines (edges).",
         "files": {
-            "nodes": "nodes.csv",
-            "relationships": "relationships.csv"
+            "nodes": "grid_nodes.csv",
+            "relationships": "connected_to_relationships.csv"
         },
         "prepared_for": "Neo4j graph import",
     }
 
-    metadata_path = output_dir / "metadata.json"
+    metadata_path = output_dir / "gridkit.json"
     with open(metadata_path, 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=4)
 

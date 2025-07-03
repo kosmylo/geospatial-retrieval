@@ -55,25 +55,10 @@ geospatial_retrieval
 ├── main.py
 ├── output
 │   ├── osm
-│   │   ├── germany_power_plants.geojson
-│   │   ├── germany_power_plants_metadata.json
-│   │   └── ...
 │   ├── gridkit
-│   │   ├── nodes.csv
-│   │   ├── relationships.csv
-│   │   └── metadata.json
 │   ├── powerplants
-│   │   ├── eu_powerplants.csv
-│   │   └── metadata.json
 │   ├── tso_network
-│   │   ├── tso_nodes.csv
-│   │   ├── tso_relationships.csv
-│   │   └── metadata.json
 │   └── cordis
-│       ├── projects_nodes.csv
-│       ├── organizations_nodes.csv
-│       ├── participated_in_relationships.csv
-│       └── metadata.json
 ├── requirements.txt
 └── scripts
     ├── osm_retrieval.py
@@ -139,10 +124,20 @@ You can adjust or extend these queries directly within the script as needed.
 Datasets and metadata structured as follows:
 
 ```text
-├── output/osm/
-│   ├── germany_power_plants.geojson
-│   ├── germany_power_plants_metadata.json
-│   └── ...
+├── output/osm/neo4j_import/
+│   ├── chargingstations_nodes.csv
+│   ├── chargingstations_located_in_relationships.csv
+│   ├── powerplants_nodes.csv
+│   ├── powerplants_located_in_relationships.csv
+│   ├── solarfarms_nodes.csv
+│   ├── solarfarms_located_in_relationships.csv
+│   ├── windturbines_nodes.csv
+│   ├── windturbines_located_in_relationships.csv
+│   ├── substations_nodes.csv
+│   ├── substations_located_in_relationships.csv
+│   ├── transmissionlines_nodes.csv
+│   ├── transmissionlines_located_in_relationships.csv
+│   └── countries_nodes.csv   
 ├── gridkit/
 │   ├── nodes.csv
 │   ├── relationships.csv

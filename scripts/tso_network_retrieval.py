@@ -77,34 +77,83 @@ def save_interconnections(data, output_dir):
     df.to_csv(output_path, index=False)
     logging.info(f"ENTSO-E TSO Network data saved to {output_path}")
 
-def generate_metadata(output_dir):
+def process_entsoe_tso_network(csv_path: Path, output_dir: Path):
+    logging.info("Processing ENTSO-E TSO Network data...")
+
+    # Explicitly load the CSV with UTF-8 encoding
+    df = pd.read_csv(csv_path, encoding='utf-8')
+
+    # Explicit Nodes Preparation
+    tso_from_df = df[['tso_from', 'from_area_code']].rename(columns={'tso_from': 'country', 'from_area_code': 'area_code'})
+    tso_to_df = df[['tso_to', 'to_area_code']].rename(columns={'tso_to': 'country', 'to_area_code': 'area_code'})
+    tso_nodes_df = pd.concat([tso_from_df, tso_to_df]).drop_duplicates().reset_index(drop=True)
+
+    # Explicit Relationships Preparation
+    relationships_df = df.rename(columns={
+        'tso_from': 'source_country',
+        'tso_to': 'target_country',
+        'status': 'status'
+    })
+    relationships_df = relationships_df[['source_country', 'target_country', 'status']]
+
+    # Save explicitly prepared data
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    tso_nodes_csv = output_dir / "tso_nodes.csv"
+    relationships_csv = output_dir / "interconnected_with_relationships.csv"
+
+    tso_nodes_df.to_csv(tso_nodes_csv, index=False, encoding='utf-8')
+    relationships_df.to_csv(relationships_csv, index=False, encoding='utf-8')
+
+    logging.info(f"TSO nodes data saved to {tso_nodes_csv}")
+    logging.info(f"Interconnection relationships data saved to {relationships_csv}")
+
+def generate_metadata(output_dir: Path):
+    logging.info("Generating metadata for ENTSO-E TSO Network...")
     metadata = {
         "dataset": "ENTSO-E TSO Network Interconnections",
         "retrieval_date": datetime.utcnow().isoformat() + "Z",
         "source": "ENTSO-E Transparency Platform API",
-        "description": "Interconnections between TSOs in Europe, retrieved via ENTSO-E API, suitable for Neo4j graph import.",
-        "columns": {
-            "tso_from": "Originating TSO country",
-            "tso_to": "Destination TSO country",
-            "from_area_code": "ENTSO-E EIC area code of origin",
-            "to_area_code": "ENTSO-E EIC area code of destination",
-            "status": "Connection status (e.g., Connected)"
+        "license": "ENTSO-E Data License",
+        "description": "Nodes and relationships representing TSO interconnections in Europe, prepared explicitly for Neo4j import.",
+        "nodes": {
+            "TSO": {
+                "country": "TSO country name",
+                "area_code": "ENTSO-E area EIC code"
+            }
+        },
+        "relationships": {
+            "INTERCONNECTED_WITH": ["TSO", "TSO", {"status": "Connection status (e.g., Connected)"}]
         },
         "prepared_for": "Neo4j graph import",
-        "files": OUTPUT_FILENAME
+        "files": {
+            "nodes": "tso_nodes.csv",
+            "relationships": "interconnected_with_relationships.csv"
+        }
     }
 
-    metadata_path = output_dir / METADATA_FILENAME
+    metadata_path = output_dir / "entsoe_metadata.json"
     with open(metadata_path, 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=4)
+
     logging.info(f"Metadata saved to {metadata_path}")
 
 def retrieve_and_prepare_tso_network(output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
+        # Fetch raw TSO network data from ENTSO-E
         data = fetch_tso_network_data()
+        
+        # Save the raw interconnections data first (original format)
         save_interconnections(data, output_dir)
+        
+        # Now explicitly process the raw data into nodes and relationships for Neo4j
+        raw_csv_path = output_dir / OUTPUT_FILENAME
+        process_entsoe_tso_network(raw_csv_path, output_dir)
+        
+        # Generate enhanced metadata explicitly tailored for Neo4j
         generate_metadata(output_dir)
+        
     except Exception as e:
-        logging.error(f"Error during TSO network retrieval: {e}")
+        logging.error(f"Error during TSO network retrieval and preparation: {e}")
         raise

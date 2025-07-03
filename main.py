@@ -6,6 +6,7 @@ from scripts.gridkit_retrieval import retrieve_and_prepare_gridkit
 from scripts.powerplants_retrieval import retrieve_and_prepare_powerplants
 from scripts.tso_network_retrieval import retrieve_and_prepare_tso_network
 from scripts.cordis_retrieval import retrieve_and_prepare_cordis
+from scripts.osm_prepare_neo4j import prepare_osm_data_for_neo4j, generate_country_nodes
 
 def configure_logging():
     """Configure logging for the application."""
@@ -41,13 +42,15 @@ def main():
     """)
 
     # Ensure output directories exist
-    osm_output_dir = Path("output/osm")
+    osm_geojson_dir = Path("output/osm/geojson")
+    osm_neo4j_output_dir = Path("output/osm/neo4j_import")
     gridkit_output_dir = Path("output/gridkit")
     powerplants_output_dir = Path("output/powerplants")
     tso_output_dir = Path("output/tso_network")
     cordis_output_dir = Path("output/cordis")
 
-    osm_output_dir.mkdir(parents=True, exist_ok=True)
+    osm_geojson_dir.mkdir(parents=True, exist_ok=True)
+    osm_neo4j_output_dir.mkdir(parents=True, exist_ok=True)
     gridkit_output_dir.mkdir(parents=True, exist_ok=True)
     powerplants_output_dir.mkdir(parents=True, exist_ok=True)
     tso_output_dir.mkdir(parents=True, exist_ok=True)
@@ -56,10 +59,23 @@ def main():
     # --- OpenStreetMap Geospatial Data Retrieval ---
     if RUN_OSM:
         try:
-            retrieve_osm_data(output_dir=osm_output_dir)
+            retrieve_osm_data(output_dir=osm_geojson_dir)
             logging.info("OSM data retrieved successfully.")
+
+            countries = ["Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", 
+                        "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Ireland", "Italy", 
+                        "Latvia", "Lithuania", "Luxembourg", "Malta", "Netherlands", "Poland", "Portugal", 
+                        "Romania", "Slovakia", "Slovenia", "Spain", "Sweden"
+                        ]
+            generate_country_nodes(osm_neo4j_output_dir, countries)
+
+            # Explicitly convert GeoJSON files to CSV for Neo4j
+            for country in countries:
+                logging.info(f"Preparing OSM data for Neo4j import: {country}")
+                prepare_osm_data_for_neo4j(osm_geojson_dir, osm_neo4j_output_dir, country)
+            logging.info("OSM data explicitly prepared for Neo4j import.")
         except Exception as e:
-            logging.error(f"OSM retrieval failed: {e}")
+            logging.error(f"OSM retrieval or preparation failed: {e}")
     
     # --- GridKit European Transmission Grid Retrieval ---
     if RUN_GRIDKIT:

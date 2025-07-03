@@ -3,6 +3,7 @@ import json
 import os
 import logging
 from datetime import datetime
+import time
 
 # OSM Overpass API URL
 OVERPASS_URL = "http://overpass-api.de/api/interpreter"
@@ -40,19 +41,29 @@ def build_overpass_query(country_iso, osm_filter):
     out center;
     """
 
-def fetch_osm_data(country, country_iso, dataset_name, osm_filter):
-    """Fetches data from OSM Overpass API."""
+def fetch_osm_data(country, country_iso, dataset_name, osm_filter, max_retries=3, delay_between_retries=10):
+    """Fetches data from OSM Overpass API with retry logic."""
     logging.info(f"Fetching {dataset_name} for {country}")
     query = build_overpass_query(country_iso, osm_filter)
-    response = requests.post(OVERPASS_URL, data={'data': query})
 
-    if response.status_code == 200:
-        data = response.json()
-        logging.info(f"Retrieved {len(data.get('elements', []))} elements for {dataset_name} in {country}")
-        return data
-    else:
-        logging.error(f"Failed retrieval for {dataset_name} in {country}: {response.status_code} - {response.text}")
-        return None
+    headers = {'User-Agent': 'GeospatialDataCollector/1.0 (kosmylo@gmail.com)'}
+
+    for attempt in range(1, max_retries + 1):
+        response = requests.post(OVERPASS_URL, data={'data': query}, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            logging.info(f"Retrieved {len(data.get('elements', []))} elements for {dataset_name} in {country}")
+            time.sleep(10)  # explicitly wait between successful calls to avoid rate limits
+            return data
+        elif response.status_code in [429, 504]:
+            logging.warning(f"Attempt {attempt}/{max_retries} failed with {response.status_code} for {dataset_name} in {country}. Retrying in {delay_between_retries}s...")
+            time.sleep(delay_between_retries)
+        else:
+            logging.error(f"Non-retriable error {response.status_code} for {dataset_name} in {country}: {response.text}")
+            break
+
+    logging.error(f"All retries failed for {dataset_name} in {country}.")
+    return None
 
 def save_geojson(output_dir, data, country, dataset_name):
     """Saves data as GeoJSON and metadata."""
