@@ -6,7 +6,7 @@ from scripts.gridkit_retrieval import retrieve_and_prepare_gridkit
 from scripts.powerplants_retrieval import retrieve_and_prepare_powerplants
 from scripts.tso_network_retrieval import retrieve_and_prepare_tso_network
 from scripts.cordis_retrieval import retrieve_and_prepare_cordis
-from scripts.osm_prepare_neo4j import prepare_osm_data_for_neo4j, generate_country_nodes
+from scripts.osm_prepare_neo4j import prepare_osm_data_for_neo4j
 
 def configure_logging():
     """Configure logging for the application."""
@@ -67,12 +67,10 @@ def main():
                         "Latvia", "Lithuania", "Luxembourg", "Malta", "Netherlands", "Poland", "Portugal", 
                         "Romania", "Slovakia", "Slovenia", "Spain", "Sweden"
                         ]
-            generate_country_nodes(osm_neo4j_output_dir, countries)
-
-            # Explicitly convert GeoJSON files to CSV for Neo4j
-            for country in countries:
-                logging.info(f"Preparing OSM data for Neo4j import: {country}")
-                prepare_osm_data_for_neo4j(osm_geojson_dir, osm_neo4j_output_dir, country)
+            
+            # Explicitly convert GeoJSON files to CSV for Neo4j:
+            logging.info("Preparing OSM data for Neo4j import for all countries.")
+            prepare_osm_data_for_neo4j(osm_geojson_dir, osm_neo4j_output_dir, countries)
             logging.info("OSM data explicitly prepared for Neo4j import.")
         except Exception as e:
             logging.error(f"OSM retrieval or preparation failed: {e}")

@@ -3,7 +3,7 @@ import json
 import logging
 from pathlib import Path
 
-def geojson_to_csv(geojson_path, country_name, output_dir, node_type):
+def geojson_to_df(geojson_path, country_name, node_type):
     with open(geojson_path, 'r', encoding='utf-8') as f:
         geojson = json.load(f)
 
@@ -18,7 +18,6 @@ def geojson_to_csv(geojson_path, country_name, output_dir, node_type):
             "country": country_name
         }
 
-        # Additional properties based on node_type
         if node_type == "ChargingStation":
             row.update({
                 "name": props.get("name"),
@@ -69,23 +68,9 @@ def geojson_to_csv(geojson_path, country_name, output_dir, node_type):
 
         rows.append(row)
 
-    df = pd.DataFrame(rows)
+    return pd.DataFrame(rows)
 
-    # Save nodes CSV
-    node_csv_path = output_dir / f"{node_type.lower()}s_nodes.csv"
-    df.to_csv(node_csv_path, index=False, encoding='utf-8')
-    logging.info(f"Nodes CSV saved: {node_csv_path}")
-
-    # Save relationships CSV (to Country)
-    relationships_df = df[["osm_id", "country"]].rename(columns={
-        "osm_id": "source_id", 
-        "country": "target_country"
-    })
-    rel_csv_path = output_dir / f"{node_type.lower()}s_located_in_relationships.csv"
-    relationships_df.to_csv(rel_csv_path, index=False, encoding='utf-8')
-    logging.info(f"Relationships CSV saved: {rel_csv_path}")
-
-def prepare_osm_data_for_neo4j(geojson_dir: Path, output_dir: Path, country_name: str):
+def prepare_osm_data_for_neo4j(geojson_dir: Path, output_dir: Path, countries: list):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     dataset_mapping = {
@@ -97,20 +82,41 @@ def prepare_osm_data_for_neo4j(geojson_dir: Path, output_dir: Path, country_name
         "transmission_lines": "TransmissionLine"
     }
 
-    for dataset, node_type in dataset_mapping.items():
-        geojson_filename = f"{country_name.lower()}_{dataset}.geojson"
-        geojson_path = geojson_dir / geojson_filename
+    all_nodes_dfs = {node_type: [] for node_type in dataset_mapping.values()}
+    country_rows = []
 
-        if geojson_path.exists():
-            logging.info(f"Processing {geojson_filename}...")
-            geojson_to_csv(geojson_path, country_name, output_dir, node_type)
-        else:
-            logging.warning(f"File not found: {geojson_path}")
+    for country in countries:
+        country_rows.append({"country_name": country})
+        for dataset, node_type in dataset_mapping.items():
+            geojson_filename = f"{country.lower().replace(' ', '_')}_{dataset}.geojson"
+            geojson_path = geojson_dir / geojson_filename
 
-def generate_country_nodes(output_dir: Path, countries: list):
-    """Generate explicit country nodes CSV."""
-    rows = [{"country_name": country} for country in countries]
-    df = pd.DataFrame(rows)
+            if geojson_path.exists():
+                logging.info(f"Processing {geojson_filename} for {country}...")
+                df = geojson_to_df(geojson_path, country, node_type)
+                all_nodes_dfs[node_type].append(df)
+            else:
+                logging.warning(f"File not found: {geojson_path}")
+
+    # Save combined CSV files explicitly
+    for node_type, dfs in all_nodes_dfs.items():
+        if dfs:
+            combined_df = pd.concat(dfs, ignore_index=True).drop_duplicates(subset=['osm_id'])
+            node_csv_path = output_dir / f"{node_type.lower()}s_nodes.csv"
+            combined_df.to_csv(node_csv_path, index=False, encoding='utf-8')
+            logging.info(f"Combined nodes CSV saved: {node_csv_path}")
+
+            # Relationships to Country CSV
+            relationships_df = combined_df[["osm_id", "country"]].rename(columns={
+                "osm_id": "source_id",
+                "country": "target_country"
+            })
+            rel_csv_path = output_dir / f"{node_type.lower()}s_located_in_relationships.csv"
+            relationships_df.to_csv(rel_csv_path, index=False, encoding='utf-8')
+            logging.info(f"Combined relationships CSV saved: {rel_csv_path}")
+
+    # Save countries_nodes.csv explicitly
+    countries_df = pd.DataFrame(country_rows).drop_duplicates()
     country_csv_path = output_dir / "countries_nodes.csv"
-    df.to_csv(country_csv_path, index=False, encoding='utf-8')
+    countries_df.to_csv(country_csv_path, index=False, encoding='utf-8')
     logging.info(f"Country nodes CSV saved: {country_csv_path}")
